@@ -1,0 +1,207 @@
+package dao;
+
+import jpa.UsuarioJPA;
+import jpa.UsuarioPapelJPA;
+import modelo.Papel;
+import jpa.PapelJPA;
+import modelo.Usuario;
+
+import javax.persistence.EntityManager;
+import javax.persistence.EntityManagerFactory;
+import javax.persistence.Persistence;
+
+import java.sql.*;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.util.ArrayList;
+import java.util.List;
+
+public class UsuarioDAOMySQL implements UsuarioJPA {
+
+    private Connection conexao;
+
+    private EntityManagerFactory factory;
+    private EntityManager manager;
+
+    public UsuarioDAOMySQL() throws SQLException, ClassNotFoundException {
+
+        factory = Persistence.createEntityManagerFactory("usuario");
+        manager = factory.createEntityManager();
+
+        /*final String DRIVER = "com.mysql.cj.jdbc.Driver";
+        final String URL = "jdbc:mysql://localhost:3306/blog?allowPublicKeyRetrieval=true&serverTimezone=UTC&useSSL=false";
+        final String USER = "root";
+        final String PW = "12611";
+
+        Class.forName(DRIVER);
+        conexao = DriverManager.getConnection(URL, USER, PW);
+
+        String query = "create table if not exists usuario( id int primary key," + "nome varchar(100)," + "senha varchar(200)," + "login varchar(100)," + "email varchar(100)" + ");";
+
+        Statement statement = conexao.createStatement();
+        statement.execute(query);*/
+    }
+
+    @Override
+    public Usuario insereUsuario(Usuario usuario) throws SQLException, ClassNotFoundException {
+        String query = "INSERT INTO usuario (email, login, nome, senha) VALUES (?,?,?,?);";
+        java.sql.PreparedStatement statement = conexao.prepareStatement(query);
+
+        statement.setString(1, usuario.getEmail());
+        statement.setString(2, usuario.getLogin());
+        statement.setString(3, usuario.getNome());
+        statement.setString(4, usuario.getSenha());
+
+        statement.execute();
+        statement.close();
+
+        Usuario novo = achaUsuarioPorLogin(usuario.getLogin());
+        UsuarioPapelJPA usuarioPapelJPA = new UsuarioPapelDAOMySQL();
+        usuarioPapelJPA.inserePapelUsuario(novo.getId());
+
+        return usuario;
+    }
+
+    @Override
+    public Usuario achaUsuarioPorLogin(String nomeUsuario) throws SQLException, ClassNotFoundException {
+
+        PapelJPA papelJPA = new PapelDAOMySQL();
+        UsuarioPapelJPA usuarioPapelJPA = new UsuarioPapelDAOMySQL();
+        List<Long> idPapeis = new ArrayList<>();
+        List<Papel> papeis = new ArrayList<>();
+
+
+        Usuario achado = null;
+
+        PreparedStatement query = conexao.prepareStatement("select * from usuario where login = ?");
+        query.setString(1, nomeUsuario);
+
+        ResultSet rs = query.executeQuery();
+
+        if (rs.next()) {
+
+            achado = new Usuario();
+            achado.setId(rs.getLong(1));
+            achado.setNome(rs.getString(4));
+            achado.setSenha(rs.getString(5));
+            achado.setLogin(rs.getString(3));
+            achado.setEmail(rs.getString(2));
+
+            idPapeis = usuarioPapelJPA.achaPorUsuario(achado);
+            for(Long idPapel: idPapeis){
+                papeis.add(papelJPA.achaPorId(idPapel));
+            }
+
+            achado.setPapeis(papeis);
+
+            System.out.println(achado.toString());
+        }
+
+
+
+        query.close();
+
+        rs.close();
+
+        System.out.println(achado.toString());
+
+
+        return achado;
+    }
+
+    @Override
+    public Usuario achaUsuarioPorId(Long idUsuario) throws SQLException {
+
+
+
+        Usuario encontrado = manager.find(Usuario.class, new Long(idUsuario));
+
+
+
+        return encontrado;
+    }
+
+    @Override
+    public Usuario achaUsuarioPorNome(String nomeUsuario) throws SQLException {
+
+        Usuario achado = null;
+
+        PreparedStatement query = conexao.prepareStatement("select * from usuario where login = ?");
+        query.setString(1, nomeUsuario);
+
+        ResultSet rs = query.executeQuery();
+
+        if (rs.next()) {
+            achado = new Usuario();
+            achado.setId(rs.getLong(1));
+            achado.setNome(rs.getString(2));
+            achado.setSenha(rs.getString(3));
+            achado.setLogin(rs.getString(4));
+            achado.setEmail(rs.getString(5));
+        }
+
+        return achado;
+    }
+
+    @Override
+    public List<Usuario> achaTodos() {
+        List<Usuario> lista = manager
+                .createQuery("select '*' from Usuario")
+                .getResultList();
+
+
+
+
+        return lista;
+    }
+
+    @Override
+    public Usuario atualizaUsuario(Usuario usuarioNovo) {
+        manager.getTransaction().begin();
+        manager.merge(usuarioNovo);
+        manager.getTransaction().commit();
+
+        return usuarioNovo;
+    }
+
+    @Override
+    public boolean deletaUsuarioPorId(Long id) throws SQLException {
+        Usuario encontrado = achaUsuarioPorId(id);
+
+        manager.getTransaction().begin();
+        manager.remove(encontrado);
+        manager.getTransaction().commit();
+        manager.contains(encontrado);
+
+        return verificaUsuario(encontrado);
+    }
+
+    @Override
+    public boolean verificaUsuario(Usuario usuario) throws SQLException {
+        boolean tem = true;
+        Usuario auxiliar = achaUsuarioPorId(usuario.getId());
+
+        if(auxiliar == null || !auxiliar.getLogin().equals(usuario.getLogin())){
+            tem = false;
+        }
+
+        return tem;
+    }
+
+    @Override
+    public void mostraTodos(List<Usuario> listaUsuarios) {
+
+    }
+
+    @Override
+    public List<String> achaTodosLogin() {
+        return null;
+    }
+
+    @Override
+    public boolean verificaLogin(String login) {
+        return false;
+    }
+
+
+}
